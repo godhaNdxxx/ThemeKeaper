@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF0D0D0D">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- Header -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="ThemeKeeper"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFFFF"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Защита MTZ-темы от отката HyperOS"
+            android:textSize="13sp"
+            android:textColor="#99FFFFFF"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="20dp" />
+
+        <!-- Status card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_bg"
+            android:padding="16dp"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔓 Тема не защищена"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFFFF"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/tvShizukuStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Shizuku: проверяю..."
+                android:textSize="14sp"
+                android:textColor="#CCFFFFFF"
+                android:layout_marginBottom="4dp" />
+
+            <TextView
+                android:id="@+id/tvThemeInfo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Тема не зафиксирована"
+                android:textSize="13sp"
+                android:textColor="#99FFFFFF" />
+
+        </LinearLayout>
+
+        <!-- Shizuku permission button (hidden when permission granted) -->
+        <Button
+            android:id="@+id/btnShizukuPermission"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="Дать разрешение Shizuku"
+            android:textAllCaps="false"
+            android:backgroundTint="#FF6200EE"
+            android:textColor="#FFFFFFFF"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone" />
+
+        <!-- Action buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+            <Button
+                android:id="@+id/btnLock"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="🔒 Зафиксировать"
+                android:textAllCaps="false"
+                android:backgroundTint="#FF2E7D32"
+                android:textColor="#FFFFFFFF"
+                android:textSize="13sp"
+                android:layout_marginEnd="4dp"
+                android:enabled="false" />
+
+            <Button
+                android:id="@+id/btnUnlock"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="🔓 Снять"
+                android:textAllCaps="false"
+                android:backgroundTint="#FFD32F2F"
+                android:textColor="#FFFFFFFF"
+                android:textSize="13sp"
+                android:layout_marginStart="4dp"
+                android:enabled="false" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+            <Button
+                android:id="@+id/btnStartService"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="▶ Запустить защиту"
+                android:textAllCaps="false"
+                android:backgroundTint="#FF1565C0"
+                android:textColor="#FFFFFFFF"
+                android:textSize="13sp"
+                android:layout_marginEnd="4dp"
+                android:enabled="false" />
+
+            <Button
+                android:id="@+id/btnStopService"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="⏹ Остановить"
+                android:textAllCaps="false"
+                android:backgroundTint="#FF757575"
+                android:textColor="#FFFFFFFF"
+                android:textSize="13sp"
+                android:layout_marginStart="4dp"
+                android:enabled="false" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
+
+            <Button
+                android:id="@+id/btnScanSettings"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="🔍 Сканировать"
+                android:textAllCaps="false"
+                android:backgroundTint="#FF37474F"
+                android:textColor="#FFFFFFFF"
+                android:textSize="13sp"
+                android:layout_marginEnd="4dp"
+                android:enabled="false" />
+
+            <Button
+                android:id="@+id/btnBattery"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="🔋 Оптимизация"
+                android:textAllCaps="false"
+                android:backgroundTint="#FF37474F"
+                android:textColor="#FFFFFFFF"
+                android:textSize="13sp"
+                android:layout_marginStart="4dp" />
+
+        </LinearLayout>
+
+        <!-- Instructions -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_bg"
+            android:padding="16dp"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Инструкция"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFFFF"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1. Запустите Shizuku (через Wireless Debugging)\n2. Нажмите «Дать разрешение Shizuku»\n3. Примените нужную MTZ-тему через ChaoMe\n4. Нажмите «Зафиксировать» — приложение сохранит текущие настройки темы\n5. Запустите защиту — сервис будет следить за откатом\n6. Нажмите «Оптимизация» чтобы исключить приложение из режима энергосбережения\n\nПосле перезагрузки: запустите Shizuku, затем откройте ThemeKeeper — защита запустится автоматически."
+                android:textSize="13sp"
+                android:textColor="#CCFFFFFF"
+                android:lineSpacingMultiplier="1.3" />
+
+        </LinearLayout>
+
+        <!-- Log output -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Лог"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#99FFFFFF"
+            android:layout_marginBottom="4dp" />
+
+        <ScrollView
+            android:id="@+id/scrollLog"
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:background="@drawable/card_bg"
+            android:padding="12dp">
+
+            <TextView
+                android:id="@+id/tvLog"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="11sp"
+                android:textColor="#AAFFFFFF"
+                android:fontFamily="monospace"
+                android:lineSpacingMultiplier="1.2" />
+
+        </ScrollView>
+
+    </LinearLayout>
+
+</ScrollView>

@@ -16,22 +16,8 @@ jobs:
           mkdir -p proj
           unzip -q ThemeKeeper.zip -d proj
           cd proj/ThemeKeeper
-          sed -i 's/^dependencyResolution {/dependencyResolutionManagement {/' settings.gradle.kts
+          patch -p1 < ../../patches/all.patch
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          SRC=app/src/main/java/com/themekeeper/app
-          sed -i 's/val discovered = ShizukuHelper.discoverThemeSettings()$/val discovered = ShizukuHelper.discoverThemeSettings().toMutableMap()/' $SRC/ThemeSnapshot.kt
-          perl -pi -e 's/Shizuku\.newProcess\(arrayOf\("sh", "-c", command\), null, null\)/newProcessCompat(arrayOf("sh", "-c", command))/' $SRC/ShizukuHelper.kt
-          cat >> $SRC/ShizukuHelper.kt <<'EOF'
-
-          private fun newProcessCompat(cmd: Array<String>): Process {
-              val m = Shizuku::class.java.getDeclaredMethod(
-                  "newProcess", Array<String>::class.java, Array<String>::class.java, String::class.java
-              )
-              m.isAccessible = true
-              return m.invoke(null, cmd, null, null) as Process
-          }
-          EOF
-          grep -n "newProcessCompat\|toMutableMap" $SRC/*.kt
 
       - uses: actions/setup-java@v4
         with:

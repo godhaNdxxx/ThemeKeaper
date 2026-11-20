@@ -21,6 +21,7 @@ jobs:
           cd proj/ThemeKeeper
           patch -p1 < ../../patches/all.patch
           patch -p1 < ../../patches/battery.patch
+          patch -p1 < ../../patches/guard.patch
           echo "sdk.dir=$ANDROID_HOME" > local.properties
 
       - name: Reuse signing key between builds

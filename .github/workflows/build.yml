@@ -29,7 +29,16 @@ jobs:
 
       - name: Build debug APK
         working-directory: proj/ThemeKeeper
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          gradle assembleDebug --no-daemon 2>&1 | tee build.log
+
+      - name: Show errors
+        if: failure()
+        working-directory: proj/ThemeKeeper
+        run: |
+          grep -E "^e: |error:|What went wrong|ERROR:|Caused by" -A3 build.log | head -60 > err.txt || true
+          while IFS= read -r line; do echo "::error::$line"; done < err.txt
 
       - uses: actions/upload-artifact@v4
         with:

@@ -11,12 +11,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Extract project from zip
+      - name: Extract and patch project
         run: |
           mkdir -p proj
           unzip -q ThemeKeeper.zip -d proj
-          sed -i 's/^dependencyResolution {/dependencyResolutionManagement {/' proj/ThemeKeeper/settings.gradle.kts
-          echo "sdk.dir=$ANDROID_HOME" > proj/ThemeKeeper/local.properties
+          cd proj/ThemeKeeper
+          sed -i 's/^dependencyResolution {/dependencyResolutionManagement {/' settings.gradle.kts
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          SRC=app/src/main/java/com/themekeeper/app
+          sed -i 's/val discovered = ShizukuHelper.discoverThemeSettings()$/val discovered = ShizukuHelper.discoverThemeSettings().toMutableMap()/' $SRC/ThemeSnapshot.kt
+          perl -pi -e 's/Shizuku\.newProcess\(arrayOf\("sh", "-c", command\), null, null\)/newProcessCompat(arrayOf("sh", "-c", command))/' $SRC/ShizukuHelper.kt
+          cat >> $SRC/ShizukuHelper.kt <<'EOF'
+
+          private fun newProcessCompat(cmd: Array<String>): Process {
+              val m = Shizuku::class.java.getDeclaredMethod(
+                  "newProcess", Array<String>::class.java, Array<String>::class.java, String::class.java
+              )
+              m.isAccessible = true
+              return m.invoke(null, cmd, null, null) as Process
+          }
+          EOF
+          grep -n "newProcessCompat\|toMutableMap" $SRC/*.kt
 
       - uses: actions/setup-java@v4
         with:
@@ -37,7 +52,7 @@ jobs:
         if: failure()
         working-directory: proj/ThemeKeeper
         run: |
-          grep -E "^e: |error:|What went wrong|ERROR:|Caused by" -A3 build.log | head -60 > err.txt || true
+          grep -E "^e: |What went wrong|ERROR:" -A2 build.log | head -60 > err.txt || true
           while IFS= read -r line; do echo "::error::$line"; done < err.txt
 
       - uses: actions/upload-artifact@v4

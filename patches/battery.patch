@@ -1,0 +1,28 @@
+--- a/app/src/main/java/com/themekeeper/app/ThemeMonitorService.kt	2026-11-20 11:23:32.745627072 +0300
++++ b/app/src/main/java/com/themekeeper/app/ThemeMonitorService.kt	2026-11-20 11:23:32.750333797 +0300
+@@ -36,7 +36,7 @@
+         private const val TAG = "ThemeMonitorService"
+         private const val CHANNEL_ID = "theme_keeper_channel"
+         private const val NOTIFICATION_ID = 1
+-        private const val POLL_INTERVAL_MS = 15_000L // 15 seconds
++        private const val POLL_INTERVAL_MS = 60_000L // 60 seconds
+         private const val RESTORE_COOLDOWN_MS = 5_000L // 5 seconds between restores
+ 
+         const val ACTION_START = "com.themekeeper.START"
+@@ -103,14 +103,8 @@
+     private fun startMonitoring() {
+         setRunningState(true)
+ 
+-        // Acquire partial wake lock to keep CPU alive for quick response
+-        val pm = getSystemService(POWER_SERVICE) as PowerManager
+-        wakeLock = pm.newWakeLock(
+-            PowerManager.PARTIAL_WAKE_LOCK,
+-            "ThemeKeeper::MonitorLock"
+-        ).apply {
+-            acquire(24 * 60 * 60 * 1000L) // 24 hours max
+-        }
++        // No wake lock: ContentObserver wakes us when settings change,
++        // polling is only a low-frequency fallback while the CPU is awake.
+ 
+         // Register ContentObservers on theme-related URIs
+         registerThemeObservers()

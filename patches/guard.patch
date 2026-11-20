@@ -1,0 +1,129 @@
+diff -ruN -x .git -x .github -x README_BUILD.txt st/ThemeKeeper/app/src/main/java/com/themekeeper/app/ThemeGuard.kt ThemeKeeper/app/src/main/java/com/themekeeper/app/ThemeGuard.kt
+--- a/app/src/main/java/com/themekeeper/app/ThemeGuard.kt	1970-01-01 03:00:00.000000000 +0300
++++ b/app/src/main/java/com/themekeeper/app/ThemeGuard.kt	2026-11-20 13:51:30.640351600 +0300
+@@ -0,0 +1,77 @@
++package com.themekeeper.app
++
++import android.util.Log
++
++/**
++ * Keeps the system "Themes" app (com.android.thememanager) from running in
++ * the background, which is where HyperOS performs the third-party theme rollback.
++ * Requires Shizuku (shell identity). Foreground use of Themes is never touched.
++ */
++object ThemeGuard {
++
++    private const val TAG = "ThemeGuard"
++    const val PKG = "com.android.thememanager"
++
++    private var ticks = 0
++    @Volatile var stopCount = 0
++        private set
++
++    fun applyRestrictions(): Boolean {
++        if (!ShizukuHelper.shizukuReady()) return false
++        listOf(
++            "cmd appops set $PKG RUN_IN_BACKGROUND ignore",
++            "cmd appops set $PKG RUN_ANY_IN_BACKGROUND ignore",
++            "cmd appops set $PKG WAKE_LOCK ignore",
++            "am set-standby-bucket $PKG restricted",
++            "cmd jobscheduler cancel -u 0 $PKG"
++        ).forEach { run(it) }
++        Log.i(TAG, "Restrictions applied")
++        return true
++    }
++
++    fun removeRestrictions(): Boolean {
++        if (!ShizukuHelper.shizukuReady()) return false
++        listOf(
++            "cmd appops set $PKG RUN_IN_BACKGROUND allow",
++            "cmd appops set $PKG RUN_ANY_IN_BACKGROUND allow",
++            "cmd appops set $PKG WAKE_LOCK allow",
++            "am set-standby-bucket $PKG active"
++        ).forEach { run(it) }
++        Log.i(TAG, "Restrictions removed")
++        return true
++    }
++
++    /**
++     * Called periodically from the monitor service (background thread).
++     * Returns true if the Themes app was found running in background and stopped.
++     */
++    fun tick(): Boolean {
++        if (!ShizukuHelper.shizukuReady()) return false
++        if (ticks++ % 20 == 0) applyRestrictions()
++        if (isRunning() && !isForeground()) {
++            run("am force-stop $PKG")
++            run("cmd jobscheduler cancel -u 0 $PKG")
++            stopCount++
++            Log.i(TAG, "Themes app stopped in background ($stopCount)")
++            return true
++        }
++        return false
++    }
++
++    private fun isRunning(): Boolean {
++        val r = ShizukuHelper.executeCommand("ps -A -o NAME | grep -c '^$PKG'")
++        return (r.stdout.trim().toIntOrNull() ?: 0) > 0
++    }
++
++    private fun isForeground(): Boolean {
++        val r = ShizukuHelper.executeCommand(
++            "dumpsys activity activities | grep -E 'topResumedActivity|mResumedActivity' | head -n 3"
++        )
++        return r.stdout.contains(PKG)
++    }
++
++    private fun run(cmd: String) {
++        val r = ShizukuHelper.executeCommand(cmd)
++        if (r.exitCode != 0) Log.w(TAG, "$cmd -> ${r.exitCode} ${r.stderr}")
++    }
++}
+diff -ruN -x .git -x .github -x README_BUILD.txt st/ThemeKeeper/app/src/main/java/com/themekeeper/app/ThemeMonitorService.kt ThemeKeeper/app/src/main/java/com/themekeeper/app/ThemeMonitorService.kt
+--- a/app/src/main/java/com/themekeeper/app/ThemeMonitorService.kt	2026-11-20 13:51:45.826303004 +0300
++++ b/app/src/main/java/com/themekeeper/app/ThemeMonitorService.kt	2026-11-20 13:51:40.526660729 +0300
+@@ -36,7 +36,7 @@
+         private const val TAG = "ThemeMonitorService"
+         private const val CHANNEL_ID = "theme_keeper_channel"
+         private const val NOTIFICATION_ID = 1
+-        private const val POLL_INTERVAL_MS = 60_000L // 60 seconds
++        private const val POLL_INTERVAL_MS = 30_000L // 30 seconds
+         private const val RESTORE_COOLDOWN_MS = 5_000L // 5 seconds between restores
+ 
+         const val ACTION_START = "com.themekeeper.START"
+@@ -82,6 +82,7 @@
+     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+         when (intent?.action) {
+             ACTION_STOP -> {
++                Thread { ThemeGuard.removeRestrictions() }.start()
+                 stopMonitoring()
+                 stopForeground(STOP_FOREGROUND_REMOVE)
+                 stopSelf()
+@@ -106,6 +107,9 @@
+         // No wake lock: ContentObserver wakes us when settings change,
+         // polling is only a low-frequency fallback while the CPU is awake.
+ 
++        // Block the Themes app from running in background (needs Shizuku)
++        Thread { ThemeGuard.applyRestrictions() }.start()
++
+         // Register ContentObservers on theme-related URIs
+         registerThemeObservers()
+ 
+@@ -209,6 +213,17 @@
+         pollingTimer = Timer("ThemePolling", true).apply {
+             scheduleAtFixedRate(object : TimerTask() {
+                 override fun run() {
++                    try {
++                        val text = if (!ShizukuHelper.shizukuReady()) {
++                            "⚠ Shizuku не запущен — блокировка отката не работает"
++                        } else {
++                            ThemeGuard.tick()
++                            "Блокировка отката активна | «Темы» остановлены: ${ThemeGuard.stopCount}"
++                        }
++                        updateNotification(text)
++                    } catch (e: Exception) {
++                        Log.e(TAG, "Guard tick failed", e)
++                    }
+                     checkAndRestore("poll")
+                 }
+             }, POLL_INTERVAL_MS, POLL_INTERVAL_MS)

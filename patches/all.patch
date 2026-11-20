@@ -1,0 +1,266 @@
+diff -ruN -x .git -x .github -x README_BUILD.txt orig/ThemeKeeper/app/build.gradle.kts ThemeKeeper/app/build.gradle.kts
+--- a/app/build.gradle.kts	2026-11-19 22:58:07.000000000 +0300
++++ b/app/build.gradle.kts	2026-11-20 10:40:37.906342013 +0300
+@@ -10,7 +10,7 @@
+     defaultConfig {
+         applicationId = "com.themekeeper.app"
+         minSdk = 30
+-        targetSdk = 35
++        targetSdk = 30
+         versionCode = 1
+         versionName = "1.0.0"
+     }
+diff -ruN -x .git -x .github -x README_BUILD.txt orig/ThemeKeeper/app/src/main/AndroidManifest.xml ThemeKeeper/app/src/main/AndroidManifest.xml
+--- a/app/src/main/AndroidManifest.xml	2026-11-19 22:58:16.000000000 +0300
++++ b/app/src/main/AndroidManifest.xml	2026-11-20 10:40:37.901183933 +0300
+@@ -8,6 +8,9 @@
+     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+     <uses-permission android:name="android.permission.WAKE_LOCK" />
++    <uses-permission
++        android:name="android.permission.WRITE_SECURE_SETTINGS"
++        tools:ignore="ProtectedPermissions" />
+ 
+     <application
+         android:allowBackup="true"
+diff -ruN -x .git -x .github -x README_BUILD.txt orig/ThemeKeeper/app/src/main/java/com/themekeeper/app/MainActivity.kt ThemeKeeper/app/src/main/java/com/themekeeper/app/MainActivity.kt
+--- a/app/src/main/java/com/themekeeper/app/MainActivity.kt	2026-11-19 23:00:36.000000000 +0300
++++ b/app/src/main/java/com/themekeeper/app/MainActivity.kt	2026-11-20 10:40:37.891744042 +0300
+@@ -44,6 +44,7 @@
+     private lateinit var btnBattery: Button
+ 
+     private val logLines = mutableListOf<String>()
++    private var grantAttempted = false
+ 
+     // Shizuku permission callback
+     private val shizukuPermissionListener =
+@@ -187,6 +188,15 @@
+             !shizukuPermission -> "Shizuku: ⚠ нет разрешения"
+             else -> "Shizuku: ✅ подключён"
+         }
++        val direct = ShizukuHelper.hasDirectAccess(this)
++        tvShizukuStatus.append(
++            if (direct) "\nАвтономный режим: ✅ (Shizuku после перезагрузки не нужен)"
++            else "\nАвтономный режим: ❌ (запустите Shizuku один раз)"
++        )
++        if (!direct && shizukuPermission && !grantAttempted) {
++            grantAttempted = true
++            enableAutonomousMode()
++        }
+ 
+         // Theme lock status
+         val isLocked = snapshot.isLocked()
+@@ -208,7 +218,23 @@
+         btnScanSettings.isEnabled = shizukuPermission
+ 
+         findViewById<Button>(R.id.btnShizukuPermission).visibility =
+-            if (!shizukuPermission) View.VISIBLE else View.GONE
++            if (!shizukuPermission && !direct) View.VISIBLE else View.GONE
++    }
++
++    private fun enableAutonomousMode() {
++        addLog("Включаю автономный режим...")
++        Thread {
++            val r = ShizukuHelper.grantDirectAccess(this)
++            runOnUiThread {
++                if (ShizukuHelper.hasDirectAccess(this)) {
++                    addLog("✓ Автономный режим включён — после перезагрузки Shizuku не нужен")
++                } else {
++                    addLog("✗ Автономный режим не включился: ${r.stderr.take(150)}")
++                    addLog("Включите «Отладка по USB (настройки безопасности)» в настройках разработчика и перезапустите приложение")
++                }
++                updateUI()
++            }
++        }.start()
+     }
+ 
+     private fun lockTheme() {
+diff -ruN -x .git -x .github -x README_BUILD.txt orig/ThemeKeeper/app/src/main/java/com/themekeeper/app/ShizukuHelper.kt ThemeKeeper/app/src/main/java/com/themekeeper/app/ShizukuHelper.kt
+--- a/app/src/main/java/com/themekeeper/app/ShizukuHelper.kt	2026-11-19 22:58:39.000000000 +0300
++++ b/app/src/main/java/com/themekeeper/app/ShizukuHelper.kt	2026-11-20 10:40:37.889326821 +0300
+@@ -1,6 +1,8 @@
+ package com.themekeeper.app
+ 
++import android.content.Context
+ import android.content.pm.PackageManager
++import android.provider.Settings
+ import android.util.Log
+ import rikka.shizuku.Shizuku
+ import rikka.shizuku.ShizukuRemoteProcess
+@@ -55,7 +57,7 @@
+      */
+     fun executeCommand(command: String): CommandResult {
+         return try {
+-            val process = Shizuku.newProcess(arrayOf("sh", "-c", command), null, null)
++            val process = newProcessCompat(arrayOf("sh", "-c", command))
+             val stdout = BufferedReader(InputStreamReader(process.inputStream)).readText().trim()
+             val stderr = BufferedReader(InputStreamReader(process.errorStream)).readText().trim()
+             val exitCode = process.waitFor()
+@@ -169,9 +171,76 @@
+         return r1.exitCode == 0
+     }
+ 
++    // ---------- Autonomous mode (works without Shizuku after a one-time grant) ----------
++
++    const val UNREADABLE = "\u0000unreadable"
++    private const val WSS = "android.permission.WRITE_SECURE_SETTINGS"
++
++    fun shizukuReady(): Boolean = isShizukuAvailable() && hasPermission()
++
++    /** True if the app holds WRITE_SECURE_SETTINGS (persists across reboots). */
++    fun hasDirectAccess(ctx: Context): Boolean =
++        ctx.checkSelfPermission(WSS) == PackageManager.PERMISSION_GRANTED
++
++    fun canRestore(ctx: Context): Boolean = hasDirectAccess(ctx) || shizukuReady()
++
++    /** One-time grant via Shizuku (shell identity). */
++    fun grantDirectAccess(ctx: Context): CommandResult =
++        executeCommand("pm grant ${ctx.packageName} $WSS")
++
++    fun readSetting(ctx: Context, ns: String, key: String): String? {
++        if (shizukuReady()) {
++            val r = executeCommand("settings get $ns '$key'")
++            if (r.exitCode == 0) {
++                return if (r.stdout != "null" && r.stdout.isNotEmpty()) r.stdout else null
++            }
++        }
++        return try {
++            val cr = ctx.contentResolver
++            when (ns) {
++                "secure" -> Settings.Secure.getString(cr, key)
++                "system" -> Settings.System.getString(cr, key)
++                "global" -> Settings.Global.getString(cr, key)
++                else -> UNREADABLE
++            }
++        } catch (e: Exception) {
++            Log.w(TAG, "Cannot read $ns:$key: ${e.message}")
++            UNREADABLE
++        }
++    }
++
++    fun writeSetting(ctx: Context, ns: String, key: String, value: String): Boolean {
++        if (hasDirectAccess(ctx)) {
++            try {
++                val cr = ctx.contentResolver
++                val ok = when (ns) {
++                    "secure" -> Settings.Secure.putString(cr, key, value)
++                    "system" -> Settings.System.putString(cr, key, value)
++                    "global" -> Settings.Global.putString(cr, key, value)
++                    else -> false
++                }
++                if (ok) return true
++            } catch (e: Exception) {
++                Log.w(TAG, "Direct write failed for $ns:$key: ${e.message}")
++            }
++        }
++        if (shizukuReady()) {
++            return executeCommand("settings put $ns '$key' '$value'").exitCode == 0
++        }
++        return false
++    }
++
+     data class CommandResult(
+         val exitCode: Int,
+         val stdout: String,
+         val stderr: String
+     )
+ }
++
++private fun newProcessCompat(cmd: Array<String>): Process {
++    val m = Shizuku::class.java.getDeclaredMethod(
++        "newProcess", Array<String>::class.java, Array<String>::class.java, String::class.java
++    )
++    m.isAccessible = true
++    return m.invoke(null, cmd, null, null) as Process
++}
+diff -ruN -x .git -x .github -x README_BUILD.txt orig/ThemeKeeper/app/src/main/java/com/themekeeper/app/ThemeMonitorService.kt ThemeKeeper/app/src/main/java/com/themekeeper/app/ThemeMonitorService.kt
+--- a/app/src/main/java/com/themekeeper/app/ThemeMonitorService.kt	2026-11-19 22:59:49.000000000 +0300
++++ b/app/src/main/java/com/themekeeper/app/ThemeMonitorService.kt	2026-11-20 10:40:37.891362651 +0300
+@@ -235,9 +235,9 @@
+         }
+ 
+         // Check Shizuku availability
+-        if (!ShizukuHelper.isShizukuAvailable() || !ShizukuHelper.hasPermission()) {
+-            Log.w(TAG, "Shizuku unavailable — cannot check/restore theme")
+-            updateNotification("⚠ Shizuku недоступен — перезапустите Shizuku")
++        if (!ShizukuHelper.canRestore(this)) {
++            Log.w(TAG, "No access — cannot check/restore theme")
++            updateNotification("⚠ Нет доступа: запустите Shizuku и откройте ThemeKeeper")
+             return
+         }
+ 
+diff -ruN -x .git -x .github -x README_BUILD.txt orig/ThemeKeeper/app/src/main/java/com/themekeeper/app/ThemeSnapshot.kt ThemeKeeper/app/src/main/java/com/themekeeper/app/ThemeSnapshot.kt
+--- a/app/src/main/java/com/themekeeper/app/ThemeSnapshot.kt	2026-11-19 22:59:09.000000000 +0300
++++ b/app/src/main/java/com/themekeeper/app/ThemeSnapshot.kt	2026-11-20 10:40:37.891129375 +0300
+@@ -57,7 +57,7 @@
+         }
+ 
+         // Discover all theme-related settings dynamically
+-        val discovered = ShizukuHelper.discoverThemeSettings()
++        val discovered = ShizukuHelper.discoverThemeSettings().toMutableMap()
+         Log.i(TAG, "Discovered ${discovered.size} theme settings keys")
+ 
+         // Also check a broader set of MIUI-specific keys
+@@ -147,14 +147,16 @@
+      */
+     fun detectRollback(): List<String> {
+         val locked = getLockedState() ?: return emptyList()
+-        val current = captureCurrentState()
+         val changed = mutableListOf<String>()
+ 
+-        for ((key, savedValue) in locked) {
+-            val currentValue = current[key]
++        for ((qualifiedKey, savedValue) in locked) {
++            val parts = qualifiedKey.split(":", limit = 2)
++            if (parts.size != 2) continue
++            val currentValue = ShizukuHelper.readSetting(context, parts[0], parts[1])
++            if (currentValue == ShizukuHelper.UNREADABLE) continue
+             if (currentValue != savedValue) {
+-                Log.w(TAG, "Rollback detected on $key: '$savedValue' -> '$currentValue'")
+-                changed.add(key)
++                Log.w(TAG, "Rollback detected on $qualifiedKey: '$savedValue' -> '$currentValue'")
++                changed.add(qualifiedKey)
+             }
+         }
+ 
+@@ -181,15 +183,7 @@
+             val namespace = parts[0]  // "secure", "system", or "global"
+             val key = parts[1]
+ 
+-            val success = when (namespace) {
+-                "secure" -> ShizukuHelper.putSecureSetting(key, value)
+-                "system" -> ShizukuHelper.putSystemSetting(key, value)
+-                "global" -> {
+-                    val r = ShizukuHelper.executeCommand("settings put global '$key' '$value'")
+-                    r.exitCode == 0
+-                }
+-                else -> false
+-            }
++            val success = ShizukuHelper.writeSetting(context, namespace, key, value)
+ 
+             if (success) {
+                 restored++
+@@ -199,8 +193,8 @@
+             }
+         }
+ 
+-        // Notify system about theme change
+-        ShizukuHelper.notifyThemeChanged()
++        // Notify system about theme change (needs Shizuku; skipped otherwise)
++        if (ShizukuHelper.shizukuReady()) ShizukuHelper.notifyThemeChanged()
+ 
+         Log.i(TAG, "Restored $restored / ${locked.size} theme settings")
+         return restored
+diff -ruN -x .git -x .github -x README_BUILD.txt orig/ThemeKeeper/settings.gradle.kts ThemeKeeper/settings.gradle.kts
+--- a/settings.gradle.kts	2026-11-19 22:57:55.000000000 +0300
++++ b/settings.gradle.kts	2026-11-19 23:31:11.562130789 +0300
+@@ -6,7 +6,8 @@
+     }
+ }
+ 
+-dependencyResolution {
++dependencyResolutionManagement {
++    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+     repositories {
+         google()
+         mavenCentral()

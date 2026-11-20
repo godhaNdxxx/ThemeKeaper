@@ -17,7 +17,14 @@ jobs:
           unzip -q ThemeKeeper.zip -d proj
           cd proj/ThemeKeeper
           patch -p1 < ../../patches/all.patch
+          patch -p1 < ../../patches/battery.patch
           echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+      - name: Reuse signing key between builds
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: themekeeper-debug-keystore-v1
 
       - uses: actions/setup-java@v4
         with:

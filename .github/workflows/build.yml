@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  ANDROID_USER_HOME: /home/runner/.android
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,13 +26,21 @@ jobs:
       - name: Reuse signing key between builds
         uses: actions/cache@v4
         with:
-          path: ~/.android/debug.keystore
-          key: themekeeper-debug-keystore-v1
+          path: /home/runner/.android/debug.keystore
+          key: themekeeper-debug-keystore-v2
 
       - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+
+      - name: Create signing key if missing
+        run: |
+          mkdir -p /home/runner/.android
+          if [ ! -f /home/runner/.android/debug.keystore ]; then
+            keytool -genkeypair -keystore /home/runner/.android/debug.keystore -storepass android -keypass android -alias androiddebugkey -dname "CN=Android Debug,O=Android,C=US" -keyalg RSA -keysize 2048 -validity 10000
+          fi
+          keytool -list -keystore /home/runner/.android/debug.keystore -storepass android | grep -i fingerprint
 
       - uses: gradle/actions/setup-gradle@v4
         with:

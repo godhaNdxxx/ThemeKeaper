@@ -16,14 +16,12 @@ jobs:
           mkdir -p proj
           unzip -q ThemeKeeper.zip -d proj
           sed -i 's/^dependencyResolution {/dependencyResolutionManagement {/' proj/ThemeKeeper/settings.gradle.kts
-          find proj -type f | sort
+          echo "sdk.dir=$ANDROID_HOME" > proj/ThemeKeeper/local.properties
 
       - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-
-      - uses: android-actions/setup-android@v3
 
       - uses: gradle/actions/setup-gradle@v4
         with:
